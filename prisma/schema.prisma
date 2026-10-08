@@ -1,0 +1,41 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["gainde_v1"]
+}
+
+enum ContactSubject {
+  collection
+  personnalisation
+  partenariat
+  autre
+  @@schema("gainde_v1")
+}
+
+enum ContactStatus {
+  new
+  in_progress
+  closed
+  @@schema("gainde_v1")
+}
+
+model ContactRequest {
+  id        String         @id @default(uuid()) @db.Uuid
+  name      String         @db.VarChar(100)
+  email     String         @db.VarChar(254)
+  phone     String         @db.VarChar(25)
+  subject   ContactSubject
+  message   String         @db.VarChar(2000)
+  consentAt DateTime       @map("consent_at") @db.Timestamptz(3)
+  createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  status    ContactStatus  @default(new)
+
+  @@index([createdAt(sort: Desc)])
+  @@map("contact_requests")
+  @@schema("gainde_v1")
+}
