@@ -9,6 +9,15 @@ const schema = z.object({
     .refine((v) => /^postgres(?:ql)?:\/\//.test(v)),
   FRONTEND_ORIGINS: z.string().default('http://localhost:3000'),
   TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(2).default(0),
+  CLOUDINARY_CLOUD_NAME: z
+    .string()
+    .regex(/^[a-zA-Z0-9_-]+$/)
+    .optional(),
+  CLOUDINARY_API_KEY: z
+    .string()
+    .regex(/^[0-9]+$/)
+    .optional(),
+  CLOUDINARY_API_SECRET: z.string().min(12).optional(),
   CONTACT_PROXY_SECRET: z.string().min(32).optional(),
 });
 
@@ -19,6 +28,13 @@ export function validateEnvironment(input: Record<string, unknown>) {
       `Configuration invalide : ${result.error.issues.map((i) => i.path.join('.')).join(', ')}. Vérifiez votre .env.`,
     );
   }
+  const cloudinaryCount = [
+    result.data.CLOUDINARY_CLOUD_NAME,
+    result.data.CLOUDINARY_API_KEY,
+    result.data.CLOUDINARY_API_SECRET,
+  ].filter(Boolean).length;
+  if (cloudinaryCount !== 0 && cloudinaryCount !== 3)
+    throw new Error('Cloudinary : renseignez les trois variables ou laissez-les absentes.');
   const origins = result.data.FRONTEND_ORIGINS.split(',').map((v) => v.trim());
   if (
     origins.some((v) => {

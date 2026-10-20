@@ -14,6 +14,7 @@ enum ContactSubject {
   personnalisation
   partenariat
   autre
+
   @@schema("gainde_v1")
 }
 
@@ -21,6 +22,7 @@ enum ContactStatus {
   new
   in_progress
   closed
+
   @@schema("gainde_v1")
 }
 
@@ -37,5 +39,103 @@ model ContactRequest {
 
   @@index([createdAt(sort: Desc)])
   @@map("contact_requests")
+  @@schema("gainde_v1")
+}
+
+enum AdminRole {
+  owner
+  admin
+
+  @@schema("gainde_v1")
+}
+
+enum ProductStatus {
+  draft
+  published
+  deleting
+
+  @@schema("gainde_v1")
+}
+
+enum MediaState {
+  pending
+  ready
+  deleting
+
+  @@schema("gainde_v1")
+}
+
+model AdminAccount {
+  id           String         @id @default(uuid()) @db.Uuid
+  username     String         @unique @db.VarChar(60)
+  displayName  String         @map("display_name") @db.VarChar(100)
+  passwordHash String         @map("password_hash") @db.VarChar(256)
+  role         AdminRole      @default(admin)
+  active       Boolean        @default(true)
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  sessions     AdminSession[]
+
+  @@map("admin_accounts")
+  @@schema("gainde_v1")
+}
+
+model AdminSession {
+  id        String       @id @default(uuid()) @db.Uuid
+  tokenHash String       @unique @map("token_hash") @db.VarChar(64)
+  accountId String       @map("account_id") @db.Uuid
+  account   AdminAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  expiresAt DateTime     @map("expires_at") @db.Timestamptz(3)
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([accountId])
+  @@index([expiresAt])
+  @@map("admin_sessions")
+  @@schema("gainde_v1")
+}
+
+model Product {
+  id           String         @id @default(uuid()) @db.Uuid
+  slug         String         @unique @db.VarChar(180)
+  name         String         @db.VarChar(160)
+  description  String         @default("") @db.VarChar(6000)
+  category     String         @default("") @db.VarChar(80)
+  priceXof     Int?           @map("price_xof")
+  sizes        String[]       @default([])
+  colors       String[]       @default([])
+  availability String         @default("on_request") @db.VarChar(40)
+  status       ProductStatus  @default(draft)
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  media        ProductMedia[]
+
+  @@index([status, createdAt(sort: Desc)])
+  @@map("products")
+  @@schema("gainde_v1")
+}
+
+model ProductMedia {
+  id            String     @id @default(uuid()) @db.Uuid
+  productId     String     @map("product_id") @db.Uuid
+  product       Product    @relation(fields: [productId], references: [id], onDelete: Restrict)
+  publicId      String     @unique @map("public_id") @db.VarChar(240)
+  resourceType  String     @map("resource_type") @db.VarChar(10)
+  state         MediaState @default(pending)
+  secureUrl     String?    @map("secure_url") @db.VarChar(1000)
+  alt           String     @default("") @db.VarChar(160)
+  position      Int        @default(0)
+  bytes         Int?
+  format        String?    @db.VarChar(16)
+  width         Int?
+  height        Int?
+  duration      Float?
+  expiresAt     DateTime   @map("expires_at") @db.Timestamptz(3)
+  nextAttemptAt DateTime   @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
+  attempts      Int        @default(0)
+  lastError     String?    @map("last_error") @db.VarChar(100)
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([productId, state, position])
+  @@index([state, nextAttemptAt])
+  @@map("product_media")
   @@schema("gainde_v1")
 }

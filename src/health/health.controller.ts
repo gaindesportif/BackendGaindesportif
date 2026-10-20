@@ -8,7 +8,13 @@ export class HealthController {
   }
   @Get('ready') async ready() {
     try {
-      await this.db.contactRequest.findFirst({ select: { id: true } });
+      await Promise.all([
+        this.db.contactRequest.findFirst({ select: { id: true } }),
+        this.db.adminAccount.findFirst({ select: { id: true } }),
+        this.db.adminSession.findFirst({ select: { id: true } }),
+        this.db.product.findFirst({ select: { id: true } }),
+        this.db.productMedia.findFirst({ select: { id: true } }),
+      ]);
       return { status: 'ready' };
     } catch {
       throw new ServiceUnavailableException('Service temporairement indisponible.');
