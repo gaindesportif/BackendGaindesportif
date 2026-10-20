@@ -222,7 +222,7 @@ run('Boutique HTTP ↔ PostgreSQL local (Cloudinary simulé, aucune écriture Ne
       .expect(200);
     const found = await api().get(`/api/v1/products/${published.body.slug}`).expect(200);
     expect(found.body.priceXof).toBe(12000);
-    expect(found.body.media[0]).toMatchObject({ alt: 'Image modifiée', position: 2 });
+    expect(found.body.media[0]).toMatchObject({ alt: 'Image modifiée', position: 0 });
     expect(JSON.stringify(found.body)).not.toMatch(
       /publicId|passwordHash|tokenHash|expiresAt|lastError/,
     );
@@ -231,6 +231,42 @@ run('Boutique HTTP ↔ PostgreSQL local (Cloudinary simulé, aucune écriture Ne
       .auth(adminToken, { type: 'bearer' })
       .send({ priceXof: null })
       .expect(400);
+  });
+  it('change réellement la couverture et décale les autres médias sans positions en double', async () => {
+    const created = await shop.create({ ...productBody, name: 'Galerie de recette locale' });
+    ids.push(created.id);
+    const photos: string[] = [];
+    for (let index = 0; index < 3; index++) {
+      const ticket = await shop.uploadSignature(created.id, 'image');
+      await shop.confirmMedia(created.id, ticket.mediaId, { alt: `Vue ${index + 1}` });
+      photos.push(ticket.mediaId);
+    }
+    const move = (id: string, position: number) =>
+      api()
+        .patch(`/api/v1/admin/products/${created.id}/media/${id}`)
+        .auth(ownerToken, { type: 'bearer' })
+        .send({ position })
+        .expect(200);
+    await move(photos[1], 0);
+    const cover = await shop.get(created.id);
+    expect(cover.media.map((item) => item.id)).toEqual([photos[1], photos[0], photos[2]]);
+    expect(cover.media.map((item) => item.position)).toEqual([0, 1, 2]);
+    await move(photos[0], 2);
+    expect((await shop.get(created.id)).media.map((item) => item.id)).toEqual([
+      photos[1],
+      photos[2],
+      photos[0],
+    ]);
+    await shop.requestMediaDeletion(created.id, photos[2]);
+    await move(photos[0], 0);
+    const afterRemoval = await shop.get(created.id);
+    expect(afterRemoval.media.map((item) => item.id)).toEqual([photos[0], photos[1]]);
+    expect(afterRemoval.media.map((item) => item.position)).toEqual([0, 1]);
+    await move(photos[0], 99);
+    expect((await shop.get(created.id)).media.map((item) => item.id)).toEqual([
+      photos[1],
+      photos[0],
+    ]);
   });
   it('retire immédiatement la dernière image et garde une suppression durable pendant une panne', async () => {
     cloud.destroy.mockRejectedValue(new ServiceUnavailableException('panne simulée'));

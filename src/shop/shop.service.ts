@@ -22,7 +22,9 @@ import {
 type ProductWithMedia = Product & { media: ProductMedia[] };
 type Transaction = Prisma.TransactionClient;
 const includeMedia = {
-  media: { orderBy: [{ position: 'asc' as const }, { createdAt: 'asc' as const }] },
+  media: {
+    orderBy: [{ position: 'asc' as const }, { createdAt: 'asc' as const }, { id: 'asc' as const }],
+  },
 };
 export function publicMedia(media: ProductMedia) {
   return {
@@ -252,7 +254,28 @@ export class ShopService implements OnModuleInit, OnModuleDestroy {
         where: { id: mediaId, productId, state: 'ready' },
       });
       if (!media) throw new NotFoundException('Média introuvable.');
-      return publicMedia(await tx.productMedia.update({ where: { id: mediaId }, data: dto }));
+      let position = media.position;
+      if (dto.position !== undefined) {
+        const ordered = await tx.productMedia.findMany({
+          where: { productId, state: 'ready' },
+          orderBy: [{ position: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+          select: { id: true, position: true },
+        });
+        const from = ordered.findIndex((item) => item.id === mediaId);
+        const [moved] = ordered.splice(from, 1);
+        position = Math.min(dto.position, ordered.length);
+        ordered.splice(position, 0, moved);
+        for (const [index, item] of ordered.entries()) {
+          if (item.position !== index)
+            await tx.productMedia.update({ where: { id: item.id }, data: { position: index } });
+        }
+      }
+      return publicMedia(
+        await tx.productMedia.update({
+          where: { id: mediaId },
+          data: { ...dto, position },
+        }),
+      );
     });
   }
   async requestMediaDeletion(productId: string, mediaId: string) {
