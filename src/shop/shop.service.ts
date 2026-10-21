@@ -10,6 +10,7 @@ import { randomUUID } from 'node:crypto';
 import { DatabaseService } from '../database/database.service';
 import { Prisma, type Product, type ProductMedia } from '../generated/prisma/client';
 import { isDuplicate } from '../admin/admin.service';
+import { orderedProductMedia, publicProductWhere } from './public-product';
 import { CloudinaryService, MEDIA_LIMITS, type ResourceType } from './cloudinary.service';
 import {
   ConfirmMediaDto,
@@ -21,11 +22,7 @@ import {
 
 type ProductWithMedia = Product & { media: ProductMedia[] };
 type Transaction = Prisma.TransactionClient;
-const includeMedia = {
-  media: {
-    orderBy: [{ position: 'asc' as const }, { createdAt: 'asc' as const }, { id: 'asc' as const }],
-  },
-};
+const includeMedia = orderedProductMedia;
 export function publicMedia(media: ProductMedia) {
   return {
     id: media.id,
@@ -77,7 +74,7 @@ export class ShopService implements OnModuleInit, OnModuleDestroy {
   }
   async list(query: ListProductsDto, admin = false) {
     const where: Prisma.ProductWhereInput = {
-      ...(admin ? {} : { status: 'published' }),
+      ...(admin ? {} : publicProductWhere),
       ...(query.category ? { category: query.category } : {}),
       ...(query.q
         ? {
@@ -107,7 +104,7 @@ export class ShopService implements OnModuleInit, OnModuleDestroy {
   }
   async getPublic(slug: string) {
     const product = await this.db.product.findFirst({
-      where: { slug, status: 'published' },
+      where: { slug, ...publicProductWhere },
       include: includeMedia,
     });
     if (!product) throw new NotFoundException('Produit introuvable.');
@@ -321,6 +318,7 @@ export class ShopService implements OnModuleInit, OnModuleDestroy {
       data: { state: 'deleting', nextAttemptAt: now },
     });
     await this.db.adminSession.deleteMany({ where: { expiresAt: { lte: now } } });
+    await this.db.customerSession.deleteMany({ where: { expiresAt: { lte: now } } });
     const due = await this.db.productMedia.findMany({
       where: { state: 'deleting', nextAttemptAt: { lte: now } },
       orderBy: { nextAttemptAt: 'asc' },

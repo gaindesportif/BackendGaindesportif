@@ -14,6 +14,13 @@ export class HealthController {
         this.db.adminSession.findFirst({ select: { id: true } }),
         this.db.product.findFirst({ select: { id: true } }),
         this.db.productMedia.findFirst({ select: { id: true } }),
+        this.db.customerAccount.findFirst({ select: { id: true, emailVerifiedAt: true } }),
+        this.db.customerSession.findFirst({ select: { id: true } }),
+        this.db.customerWishlist.findFirst({ select: { productId: true } }),
+        this.db.customerProductView.findFirst({ select: { productId: true } }),
+        this.db.customerPreparedRequest.findFirst({ select: { id: true, processingStatus: true } }),
+        this.db.customerEmailToken.findFirst({ select: { id: true } }),
+        this.db.mailOutbox.findFirst({ select: { id: true } }),
       ]);
       return { status: 'ready' };
     } catch {

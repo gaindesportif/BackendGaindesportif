@@ -13,7 +13,8 @@ export function configureApp(app: INestApplication) {
       res: import('express').Response,
       next: import('express').NextFunction,
     ) => {
-      if (req.path.startsWith('/api/v1/admin')) res.setHeader('Cache-Control', 'no-store');
+      if (req.path.startsWith('/api/v1/admin') || req.path.startsWith('/api/v1/customer'))
+        res.setHeader('Cache-Control', 'no-store');
       next();
     },
   );
@@ -23,7 +24,7 @@ export function configureApp(app: INestApplication) {
       .getOrThrow<string>('FRONTEND_ORIGINS')
       .split(',')
       .map((v) => v.trim()),
-    methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     credentials: false,
   });
   app.setGlobalPrefix('api/v1');

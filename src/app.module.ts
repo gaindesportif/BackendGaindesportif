@@ -8,6 +8,7 @@ import { DatabaseModule } from './database/database.module';
 import { ContactsModule } from './contacts/contacts.module';
 import { AdminModule } from './admin/admin.module';
 import { ShopModule } from './shop/shop.module';
+import { CustomerModule } from './customer/customer.module';
 import { HealthController } from './health/health.controller';
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { HealthController } from './health/health.controller';
     ContactsModule,
     AdminModule,
     ShopModule,
+    CustomerModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ProxyThrottlerGuard }],

@@ -94,19 +94,22 @@ model AdminSession {
 }
 
 model Product {
-  id           String         @id @default(uuid()) @db.Uuid
-  slug         String         @unique @db.VarChar(180)
-  name         String         @db.VarChar(160)
-  description  String         @default("") @db.VarChar(6000)
-  category     String         @default("") @db.VarChar(80)
-  priceXof     Int?           @map("price_xof")
-  sizes        String[]       @default([])
-  colors       String[]       @default([])
-  availability String         @default("on_request") @db.VarChar(40)
-  status       ProductStatus  @default(draft)
-  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt    DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
-  media        ProductMedia[]
+  id               String                    @id @default(uuid()) @db.Uuid
+  slug             String                    @unique @db.VarChar(180)
+  name             String                    @db.VarChar(160)
+  description      String                    @default("") @db.VarChar(6000)
+  category         String                    @default("") @db.VarChar(80)
+  priceXof         Int?                      @map("price_xof")
+  sizes            String[]                  @default([])
+  colors           String[]                  @default([])
+  availability     String                    @default("on_request") @db.VarChar(40)
+  status           ProductStatus             @default(draft)
+  createdAt        DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  media            ProductMedia[]
+  wishlist         CustomerWishlist[]
+  views            CustomerProductView[]
+  customerRequests CustomerPreparedRequest[]
 
   @@index([status, createdAt(sort: Desc)])
   @@map("products")
@@ -137,5 +140,148 @@ model ProductMedia {
   @@index([productId, state, position])
   @@index([state, nextAttemptAt])
   @@map("product_media")
+  @@schema("gainde_v1")
+}
+
+model CustomerAccount {
+  id              String                    @id @default(uuid()) @db.Uuid
+  email           String                    @unique @db.VarChar(254)
+  displayName     String                    @map("display_name") @db.VarChar(100)
+  passwordHash    String                    @map("password_hash") @db.VarChar(256)
+  emailVerifiedAt DateTime?                 @map("email_verified_at") @db.Timestamptz(3)
+  emailTokens     CustomerEmailToken[]
+  mail            MailOutbox[]
+  consentAt       DateTime                  @map("consent_at") @db.Timestamptz(3)
+  historyEnabled  Boolean                   @default(true) @map("history_enabled")
+  createdAt       DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
+  sessions        CustomerSession[]
+  wishlist        CustomerWishlist[]
+  views           CustomerProductView[]
+  requests        CustomerPreparedRequest[]
+
+  @@map("customer_accounts")
+  @@schema("gainde_v1")
+}
+
+model CustomerSession {
+  id        String          @id @default(uuid()) @db.Uuid
+  tokenHash String          @unique @map("token_hash") @db.VarChar(64)
+  accountId String          @map("account_id") @db.Uuid
+  account   CustomerAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  expiresAt DateTime        @map("expires_at") @db.Timestamptz(3)
+  createdAt DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([accountId])
+  @@index([expiresAt])
+  @@map("customer_sessions")
+  @@schema("gainde_v1")
+}
+
+model CustomerWishlist {
+  accountId String          @map("account_id") @db.Uuid
+  productId String          @map("product_id") @db.Uuid
+  account   CustomerAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  product   Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@id([accountId, productId])
+  @@index([productId])
+  @@map("customer_wishlist")
+  @@schema("gainde_v1")
+}
+
+model CustomerProductView {
+  accountId String          @map("account_id") @db.Uuid
+  productId String          @map("product_id") @db.Uuid
+  account   CustomerAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  product   Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  viewedAt  DateTime        @default(now()) @map("viewed_at") @db.Timestamptz(3)
+
+  @@id([accountId, productId])
+  @@index([accountId, viewedAt(sort: Desc)])
+  @@index([productId])
+  @@map("customer_product_views")
+  @@schema("gainde_v1")
+}
+
+model CustomerPreparedRequest {
+  id               String                @id @default(uuid()) @db.Uuid
+  accountId        String                @map("account_id") @db.Uuid
+  account          CustomerAccount       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  productId        String?               @map("product_id") @db.Uuid
+  product          Product?              @relation(fields: [productId], references: [id], onDelete: SetNull)
+  processingStatus CustomerRequestStatus @default(prepared) @map("processing_status")
+  statusVersion    Int                   @default(0) @map("status_version")
+  statusUpdatedAt  DateTime?             @map("status_updated_at") @db.Timestamptz(3)
+  statusUpdatedBy  String?               @map("status_updated_by") @db.Uuid
+  requestKey       String                @map("request_key") @db.Uuid
+  payloadHash      String                @map("payload_hash") @db.VarChar(64)
+  productName      String                @map("product_name") @db.VarChar(160)
+  productSlug      String                @map("product_slug") @db.VarChar(180)
+  priceXof         Int                   @map("price_xof")
+  quantity         Int
+  size             String?               @db.VarChar(40)
+  color            String?               @db.VarChar(40)
+  createdAt        DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([accountId, requestKey])
+  @@index([accountId, createdAt(sort: Desc)])
+  @@index([productId])
+  @@map("customer_prepared_requests")
+  @@schema("gainde_v1")
+}
+
+enum CustomerRequestStatus {
+  prepared
+  received
+  shipped
+  delivered
+  cancelled
+
+  @@schema("gainde_v1")
+}
+
+enum CustomerEmailPurpose {
+  verify_email
+  reset_password
+
+  @@schema("gainde_v1")
+}
+
+model CustomerEmailToken {
+  id        String               @id @default(uuid()) @db.Uuid
+  accountId String               @map("account_id") @db.Uuid
+  account   CustomerAccount      @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  purpose   CustomerEmailPurpose
+  tokenHash String               @unique @map("token_hash") @db.VarChar(64)
+  expiresAt DateTime             @map("expires_at") @db.Timestamptz(3)
+  usedAt    DateTime?            @map("used_at") @db.Timestamptz(3)
+  createdAt DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([accountId, purpose])
+  @@index([expiresAt])
+  @@map("customer_email_tokens")
+  @@schema("gainde_v1")
+}
+
+model MailOutbox {
+  id          String          @id @default(uuid()) @db.Uuid
+  accountId   String          @map("account_id") @db.Uuid
+  account     CustomerAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  dedupeKey   String          @unique @map("dedupe_key") @db.VarChar(180)
+  kind        String          @db.VarChar(40)
+  status      String          @default("queued") @db.VarChar(16)
+  payload     String?         @db.Text
+  attempts    Int             @default(0)
+  availableAt DateTime        @default(now()) @map("available_at") @db.Timestamptz(3)
+  leaseUntil  DateTime?       @map("lease_until") @db.Timestamptz(3)
+  expiresAt   DateTime        @map("expires_at") @db.Timestamptz(3)
+  sentAt      DateTime?       @map("sent_at") @db.Timestamptz(3)
+  lastError   String?         @map("last_error") @db.VarChar(40)
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([status, availableAt])
+  @@index([accountId, createdAt])
+  @@map("mail_outbox")
   @@schema("gainde_v1")
 }

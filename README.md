@@ -1,6 +1,6 @@
 # Backend Gaindé Sportif
 
-API NestJS 11, TypeScript strict, Prisma ORM 7 et PostgreSQL Neon. Socle contact/PWA et lot Boutique local : catalogue, comptes administrateurs et médias Cloudinary. Les commandes passent par WhatsApp ; aucun paiement ou enregistrement de commande API dans ce lot. Les migrations et tests décrits ici ne constituent pas un déploiement.
+API NestJS 11, TypeScript strict, Prisma ORM 7 et PostgreSQL. La production utilise le VPS depuis le 21/10 ; les tests ci-dessous utilisent une base locale isolée. Socle contact/PWA et lot Boutique local : catalogue, comptes administrateurs et médias Cloudinary. Les commandes passent par WhatsApp ; aucun paiement ou enregistrement de commande API dans ce lot. Les migrations et tests décrits ici ne constituent pas un déploiement.
 
 ## Démarrer
 
@@ -130,3 +130,36 @@ Les tests automatiques couvrent HTTP/auth/permissions, PostgreSQL local, publica
 Le 20/10/2026, Cloudinary a également été configuré dans le `.env` backend local privé (ignoré par Git et Docker). Recette réelle réussie avec un PNG et un WebM générés en mémoire dans Chrome, envoyés directement du navigateur vers Cloudinary et vérifiés via son Admin API par le service existant. Le retrait de la photo puis la suppression du produit ont déclenché le worker réel ; absence des deux assets confirmée par l’Admin API. File durable conservée jusqu’à expiration, puis expiration avancée uniquement dans la base PostgreSQL locale jetable de recette pour contrôler la purge finale. Aucun produit de test ajouté à Neon, aucun binaire enregistré sur le VPS et aucun média de test restant chez Cloudinary. Preuve sans identifiants : `../rapport/validation-semaine2/cloudinary-reel-20261020.json`.
 
 Ni le VPS ni DNS `gaindesportif.com` ne sont modifiés par cette configuration locale. Renseigner les mêmes noms de variables dans le gestionnaire protégé du backend distant lors d’une livraison autorisée, avec des clés renouvelées avant production si elles ont été partagées. Le backend public existant garde sa version publiée tant qu’un déploiement distinct n’a pas été autorisé et vérifié.
+
+## Comptes clients — extension locale du 21/10/2026
+
+Les clients sont distincts des comptes propriétaire/administrateur : aucun rôle administratif n’est accepté à l’inscription. Module `src/customer/`, migration additive `20261021210000_customer_accounts` (cinq tables). Les deux migrations précédentes restent inchangées. La migration n’est pas lancée par le démarrage HTTP.
+
+- Inscription nom/e-mail/mot de passe (12 à 128 caractères) et accord au traitement ; adresse normalisée, confirmable par lien e-mail. Scrypt et sel aléatoire pour les mots de passe ; jetons aléatoires dont seule l’empreinte SHA256 est stockée. Sessions de 30 jours au maximum, dix sessions actives par compte et purge des expirées.
+- Récupération par lien e-mail à usage unique (30 minutes) et confirmation d’adresse (24 heures). Liens dans le fragment de l’URL, empreintes seules conservées pour la validation. Changement de mot de passe et récupération révoquent toutes les sessions. Un service e-mail absent renvoie 503, sans faux envoi.
+- Favoris maximum 100, références de produits relues à chaque accès et filtrées sur les publications complètes. Fusion de l’ancienne sélection locale uniquement sur demande explicite du client.
+- Historique des 30 dernières fiches consultées, effaçable et désactivable. Les 50 dernières demandes préparées pour WhatsApp conservent un instantané produit/options/prix validé côté serveur. Clé d’idempotence par compte ; aucune commande, preuve d’envoi ni écriture dans WhatsApp ; notifications e-mail uniquement après confirmation manuelle.
+- Modification du nom et suppression du compte après vérification du mot de passe. Suppression en cascade des sessions/favoris/historiques. Les anciens dumps restent soumis à la rétention du fournisseur ; voir le contexte canonique.
+
+Routes `/api/v1/customer` : `POST auth/register|login|logout|password|forgot|reset|verify|resend-verification`, `GET auth/me`, `PATCH/DELETE profile`, `GET wishlist`, `PUT/DELETE wishlist/:productId`, `POST wishlist/merge`, `GET/POST/DELETE history`, `PATCH history/settings`, `GET/POST/DELETE requests`. Le BFF Next utilise un cookie HttpOnly client séparé et transmet son jeton en Bearer uniquement côté serveur. Réponses privées `no-store`, DTO stricts, contrôle des sessions et limitation des tentatives.
+
+### Livraison à préparer, sans exécution en production
+
+1. Contrôler la dernière sauvegarde PostgreSQL et la procédure de restauration ; préserver Neon et les autres applications du VPS.
+2. Après accord de publication, appliquer `npm run db:migrate` avec la connexion privée **gainde_owner** (ou un rôle de migration explicitement habilité), jamais `gainde_app` ni `gainde_backup`. Les privilèges par défaut sont attachés au propriétaire qui crée les tables.
+3. Vérifier sur les sept nouvelles tables les droits métier de `gainde_app`, le SELECT seul de `gainde_backup` et les interdictions DDL/administration. Si un autre rôle crée les tables, ses privilèges par défaut doivent être adaptés ou les droits accordés explicitement. Garder `_prisma_migrations` en lecture seule pour l’application.
+4. Livrer ensuite le backend puis le frontend ; readiness contrôle les nouvelles tables. Les deux livraisons sont nécessaires puisque les favoris passent désormais par le compte client.
+5. Recetter inscription, récupération par lien e-mail gardé privé, accès entre deux clients, favoris et ouverture WhatsApp sans envoi ; contrôler qu’une sauvegarde après migration inclut aussi les sept tables clientes. Aucun compte client réel n’a été créé pour la recette locale.
+
+Tests complémentaires : `src/customer/customer.dto.spec.ts`, `test/customer.integration.spec.ts` (11 parcours HTTP/SQL réels, dont rôles, expiration, récupération, isolement, bornes et cascades). `DATABASE_TEST_URL` doit cibler une base locale dont le nom contient `test` ; ne jamais reprendre l’environnement VPS/Neon pour ces tests.
+
+## E-mails clients et suivi manuel
+
+- `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=465`, `SMTP_USER` et `MAIL_FROM` : compte expéditeur configuré. `SMTP_PASSWORD` : mot de passe **d’application** Google, uniquement dans l’environnement privé du backend. Ne pas utiliser le mot de passe habituel du compte.
+- `MAIL_ENCRYPTION_KEY` : 32 octets aléatoires encodés en base64 (44 caractères). Conserver cette clé privée et stable pour lire la file chiffrée après redémarrage. Ne pas la remplacer avec des messages encore en attente. `CUSTOMER_SITE_URL=https://gaindesportif.com` : origine canonique exacte.
+- Les variables SMTP ne vont jamais dans le frontend, Git, les captures publiques ou les logs. Aucune valeur sensible dans les exemples. `npm run mail:check` vérifie uniquement l’authentification SMTP ; `npm run mail:check -- --send-self` envoie un test à l’expéditeur lui-même, sans créer de client.
+- Routes publiques `POST customer/auth/forgot`, `auth/reset`, `auth/verify` ; renvoi authentifié `auth/resend-verification`. Réponse forgot générique, 3 demandes par minute/IP et 60 secondes entre deux liens d’un même compte/finalité. La confirmation n’est consommée qu’après POST explicite.
+- File `mail_outbox` transactionnelle, contenu AES-256-GCM lié à l’identifiant, worker toutes les 5 secondes, bail atomique, six tentatives au maximum. Corps retiré après succès/échec définitif/expiration ; états techniques supprimés après 30 jours. « sent » signifie accepté par SMTP, pas réception garantie en boîte principale. Un Message-ID stable réduit les doublons en cas de reprise, sans garantie de livraison exactement une fois.
+- `GET admin/customer-requests?page=1`, `PATCH admin/customer-requests/:id/status` avec statut/version/confirmation explicite. Transitions bornées ; réception, expédition ou livraison confirmées par l’équipe, aucun événement WhatsApp supposé. Un e-mail est mis en file uniquement pour une adresse confirmée. L’administration indique attente/envoi accepté/échec. Si l’adresse n’est pas confirmée ou SMTP absent, le statut est enregistré et l’absence d’e-mail est indiquée ; aucun renvoi rétroactif automatique.
+- Migration complémentaire `20261021223000_customer_email_notifications`, après `20261021210000_customer_accounts`. Remplace le champ de récupération par code et ajoute les jetons, la file et les statuts. Les comptes clients n’ayant jamais été publiés, aucun code privé de production n’est retiré. Aucun changement des deux migrations historiques.
+- Tests `test/customer-email.integration.spec.ts` : vrai serveur SMTP local sans Google ni clients réels, liens uniques/expiration/finalité, révocation, limitation/neutralité des réponses, chiffrement/purge, retry/doublons, accès admin/transitions/version et cascades. Ne lancer qu’avec une base locale dont le nom contient `test`.
