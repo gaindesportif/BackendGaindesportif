@@ -17,6 +17,7 @@ import { AdminGuard } from '../admin/admin.guard';
 import { CloudinaryService } from './cloudinary.service';
 import {
   ConfirmMediaDto,
+  CreateCategoryDto,
   ListProductsDto,
   PatchMediaDto,
   PatchProductDto,
@@ -24,6 +25,13 @@ import {
   UploadSignatureDto,
 } from './shop.dto';
 import { ShopService } from './shop.service';
+@Controller('categories')
+export class CategoriesController {
+  constructor(private readonly shop: ShopService) {}
+  @Get() list() {
+    return this.shop.categories();
+  }
+}
 @Controller('products')
 export class ProductsController {
   constructor(private readonly shop: ShopService) {}
@@ -41,6 +49,14 @@ export class AdminProductsController {
     private readonly shop: ShopService,
     private readonly cloudinary: CloudinaryService,
   ) {}
+  @Get('categories') categories() {
+    return this.shop.categories();
+  }
+  @Post('categories')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  createCategory(@Body() dto: CreateCategoryDto) {
+    return this.shop.createCategory(dto);
+  }
   @Get('media/config') config() {
     return this.cloudinary.configuration();
   }

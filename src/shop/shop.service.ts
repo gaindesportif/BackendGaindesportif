@@ -14,13 +14,17 @@ import { orderedProductMedia, publicProductWhere } from './public-product';
 import { CloudinaryService, MEDIA_LIMITS, type ResourceType } from './cloudinary.service';
 import {
   ConfirmMediaDto,
+  CreateCategoryDto,
   ListProductsDto,
   PatchMediaDto,
   PatchProductDto,
   ProductDto,
 } from './shop.dto';
 
-type ProductWithMedia = Product & { media: ProductMedia[] };
+type ProductWithMedia = Product & {
+  media: ProductMedia[];
+  categoryInfo: { label: string; active: boolean };
+};
 type Transaction = Prisma.TransactionClient;
 const includeMedia = orderedProductMedia;
 export function publicMedia(media: ProductMedia) {
@@ -39,6 +43,8 @@ export function serializeProduct(product: ProductWithMedia, admin = false) {
     name: product.name,
     description: product.description,
     category: product.category,
+    categoryLabel: product.categoryInfo.label,
+    stockQuantity: product.stockQuantity,
     priceXof: product.priceXof,
     sizes: product.sizes,
     colors: product.colors,
@@ -46,9 +52,22 @@ export function serializeProduct(product: ProductWithMedia, admin = false) {
     status: product.status,
     createdAt: product.createdAt,
     updatedAt: product.updatedAt,
-    media: product.media.filter((media) => media.state === 'ready').map(publicMedia),
+    media: product.media
+      .filter((media) => media.state === 'ready' && (admin || media.resourceType === 'image'))
+      .map(publicMedia),
     ...(admin
-      ? { pendingMediaCleanup: product.media.filter((media) => media.state === 'deleting').length }
+      ? {
+          pendingMediaCleanup: product.media.filter((media) => media.state === 'deleting').length,
+          publicationReady:
+            product.priceXof !== null &&
+            product.priceXof > 0 &&
+            product.stockQuantity !== null &&
+            product.stockQuantity >= 0 &&
+            product.categoryInfo.active &&
+            product.media.some(
+              (media) => media.state === 'ready' && media.resourceType === 'image',
+            ),
+        }
       : {}),
   };
 }
@@ -71,6 +90,45 @@ export class ShopService implements OnModuleInit, OnModuleDestroy {
   async onModuleDestroy() {
     if (this.timer) clearInterval(this.timer);
     await this.cleaning;
+  }
+  async categories() {
+    const entries = await this.db.productCategory.findMany({
+      where: { active: true },
+      orderBy: { label: 'asc' },
+      take: 200,
+    });
+    return { items: entries.map((entry) => ({ value: entry.slug, label: entry.label })) };
+  }
+  async createCategory(dto: CreateCategoryDto) {
+    const label = dto.name.normalize('NFC').trim().replace(/\s+/g, ' ');
+    if (label.length < 2 || /[<>\p{Cc}]/u.test(label))
+      throw new BadRequestException('Nom de catégorie invalide.');
+    const slug = label
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 80)
+      .replace(/-+$/, '');
+    if (!slug) throw new BadRequestException('Le nom doit contenir des lettres ou des chiffres.');
+    try {
+      return await this.db.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(7142026)`;
+        if ((await tx.productCategory.count({ where: { active: true } })) >= 200)
+          throw new BadRequestException('La limite de catégories est atteinte.');
+        const category = await tx.productCategory.create({ data: { slug, label } });
+        return { value: category.slug, label: category.label };
+      });
+    } catch (error) {
+      if (isDuplicate(error))
+        throw new ConflictException('Cette catégorie existe déjà. Sélectionnez-la dans la liste.');
+      throw error;
+    }
+  }
+  private async requireCategory(client: Transaction | DatabaseService, slug: string) {
+    if (!(await client.productCategory.findFirst({ where: { slug, active: true } })))
+      throw new BadRequestException('Choisissez une catégorie existante ou créez-en une.');
   }
   async list(query: ListProductsDto, admin = false) {
     const where: Prisma.ProductWhereInput = {
@@ -121,6 +179,7 @@ export class ShopService implements OnModuleInit, OnModuleDestroy {
         'Enregistrez un brouillon et ajoutez une image avant publication.',
       );
     this.plainText(dto);
+    await this.requireCategory(this.db, dto.category);
     const baseSlug =
       dto.name
         .normalize('NFKD')
@@ -132,7 +191,17 @@ export class ShopService implements OnModuleInit, OnModuleDestroy {
         .replace(/-+$/, '') || 'produit';
     try {
       const product = await this.db.product.create({
-        data: { ...dto, slug: `${baseSlug}-${randomUUID().slice(0, 8)}`, status: 'draft' },
+        data: {
+          ...dto,
+          availability:
+            dto.stockQuantity == null
+              ? 'on_request'
+              : dto.stockQuantity > 0
+                ? 'available'
+                : 'unavailable',
+          slug: `${baseSlug}-${randomUUID().slice(0, 8)}`,
+          status: 'draft',
+        },
         include: includeMedia,
       });
       return serializeProduct(product, true);
@@ -146,18 +215,35 @@ export class ShopService implements OnModuleInit, OnModuleDestroy {
     return this.db.$transaction(async (tx) => {
       const product = await this.lockProduct(tx, id);
       this.modifiable(product);
+      if (dto.category) await this.requireCategory(tx, dto.category);
+      const stock = dto.stockQuantity === undefined ? product.stockQuantity : dto.stockQuantity;
       if ((dto.status ?? product.status) === 'published') {
+        await this.requireCategory(tx, dto.category ?? product.category);
         const price = dto.priceXof === undefined ? product.priceXof : dto.priceXof;
         const imageCount = await tx.productMedia.count({
           where: { productId: id, state: 'ready', resourceType: 'image' },
         });
-        if (!price || price < 1 || !imageCount)
+        if (
+          !price ||
+          price < 1 ||
+          !imageCount ||
+          stock == null ||
+          !Number.isInteger(stock) ||
+          stock < 0
+        )
           throw new BadRequestException(
-            'Un prix positif et au moins une image sont requis pour publier.',
+            'Un prix positif, un stock renseigné et au moins une photo sont requis pour publier.',
           );
       }
       return serializeProduct(
-        await tx.product.update({ where: { id }, data: dto, include: includeMedia }),
+        await tx.product.update({
+          where: { id },
+          data: {
+            ...dto,
+            availability: stock == null ? 'on_request' : stock > 0 ? 'available' : 'unavailable',
+          },
+          include: includeMedia,
+        }),
         true,
       );
     });
@@ -183,6 +269,7 @@ export class ShopService implements OnModuleInit, OnModuleDestroy {
     return result;
   }
   async uploadSignature(productId: string, type: ResourceType) {
+    if (type !== 'image') throw new BadRequestException('Seules les photos sont autorisées.');
     const mediaId = randomUUID();
     const publicId = `gainde-sportif/products/${productId}/${mediaId}`;
     const signed = this.cloudinary.signature(publicId, type);
@@ -194,9 +281,7 @@ export class ShopService implements OnModuleInit, OnModuleDestroy {
       if (
         all.length >= MEDIA_LIMITS.maxMedia ||
         (type === 'image' &&
-          all.filter((media) => media.resourceType === 'image').length >= MEDIA_LIMITS.maxImages) ||
-        (type === 'video' &&
-          all.filter((media) => media.resourceType === 'video').length >= MEDIA_LIMITS.maxVideos)
+          all.filter((media) => media.resourceType === 'image').length >= MEDIA_LIMITS.maxImages)
       )
         throw new BadRequestException('La limite de médias de ce produit est atteinte.');
       await tx.productMedia.create({
@@ -215,6 +300,8 @@ export class ShopService implements OnModuleInit, OnModuleDestroy {
   async confirmMedia(productId: string, mediaId: string, dto: ConfirmMediaDto) {
     const media = await this.db.productMedia.findFirst({ where: { id: mediaId, productId } });
     if (!media || media.state === 'deleting') throw new NotFoundException('Média introuvable.');
+    if (media.resourceType !== 'image')
+      throw new BadRequestException('Seules les photos sont autorisées.');
     if (media.state === 'ready') return publicMedia(media);
     if (media.expiresAt.getTime() <= Date.now())
       throw new BadRequestException('L’autorisation a expiré. Ajoutez à nouveau le fichier.');

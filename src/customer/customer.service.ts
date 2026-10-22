@@ -380,6 +380,8 @@ export class CustomerService {
         return;
       }
       const product = await this.requirePublicProduct(tx, dto.productId);
+      if (product.stockQuantity == null || dto.quantity > product.stockQuantity)
+        throw new BadRequestException('La quantité demandée dépasse le stock disponible.');
       if (product.availability === 'unavailable')
         throw new BadRequestException('Ce produit est indisponible.');
       if (

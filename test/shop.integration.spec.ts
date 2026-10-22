@@ -46,6 +46,7 @@ run('Boutique HTTP ↔ PostgreSQL local (Cloudinary simulé, aucune écriture Ne
     name: 'Produit technique de recette',
     description: 'Contenu synthétique réservé aux tests locaux.',
     category: 'equipements',
+    stockQuantity: 100,
     priceXof: 12000,
     sizes: ['M', 'L'],
     colors: ['Vert'],
@@ -298,11 +299,12 @@ run('Boutique HTTP ↔ PostgreSQL local (Cloudinary simulé, aucune écriture Ne
   it('borne les médias, les vidéos et les sessions expirées, et révoque les autres sessions après changement de mot de passe', async () => {
     const product = await shop.create(productBody);
     ids.push(product.id);
-    await Promise.all([
-      shop.uploadSignature(product.id, 'video'),
-      shop.uploadSignature(product.id, 'video'),
-    ]);
-    await expect(shop.uploadSignature(product.id, 'video')).rejects.toThrow('limite');
+    await expect(shop.uploadSignature(product.id, 'video')).rejects.toThrow('photos');
+    await api()
+      .post(`/api/v1/admin/products/${product.id}/media/upload-signature`)
+      .auth(ownerToken, { type: 'bearer' })
+      .send({ type: 'video' })
+      .expect(400);
     const config = await api()
       .get('/api/v1/admin/media/config')
       .auth(ownerToken, { type: 'bearer' })
@@ -343,7 +345,7 @@ run('Boutique HTTP ↔ PostgreSQL local (Cloudinary simulé, aucune écriture Ne
     await api().get('/api/v1/admin/auth/me').auth(adminToken, { type: 'bearer' }).expect(401);
   });
   it('nettoie les uploads abandonnés seulement après expiration, puis purge le produit', async () => {
-    const ticket = await shop.uploadSignature(secondId, 'video');
+    const ticket = await shop.uploadSignature(secondId, 'image');
     await db.productMedia.update({
       where: { id: ticket.mediaId },
       data: { expiresAt: new Date(0) },

@@ -5,9 +5,9 @@ import { createHash } from 'node:crypto';
 export const MEDIA_LIMITS = {
   maxImageBytes: 10 * 1024 * 1024,
   maxVideoBytes: 50 * 1024 * 1024,
-  maxMedia: 8,
+  maxMedia: 5,
   maxImages: 5,
-  maxVideos: 2,
+  maxVideos: 0,
 };
 export type ResourceType = 'image' | 'video';
 export type VerifiedAsset = {
@@ -35,6 +35,7 @@ export class CloudinaryService {
     publicId: string,
     type: ResourceType,
   ): { uploadUrl: string; fields: Record<string, string>; maxBytes: number } {
+    if (type !== 'image') throw new BadRequestException('Seules les photos sont autorisées.');
     this.requireConfigured();
     const fields: Record<string, string> = {
       timestamp: String(Math.floor(Date.now() / 1000)),

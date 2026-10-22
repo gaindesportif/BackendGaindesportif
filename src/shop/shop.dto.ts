@@ -12,20 +12,18 @@ import {
   Min,
   MinLength,
   ValidateIf,
+  Matches,
 } from 'class-validator';
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
-export const categories = [
-  'senegal',
-  'dakar',
-  'accessoires',
-  'equipements',
-  'personnalisation',
-  'merchandising',
-];
+const category = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+export class CreateCategoryDto {
+  @Transform(trim) @IsString() @MinLength(2) @MaxLength(80) name!: string;
+}
 export class ProductDto {
   @Transform(trim) @IsString() @MinLength(2) @MaxLength(160) name!: string;
   @Transform(trim) @IsString() @MaxLength(5000) description!: string;
-  @IsIn(categories) category!: string;
+  @IsString() @MaxLength(80) @Matches(category) category!: string;
+  @IsOptional() @IsInt() @Min(0) @Max(2147483647) stockQuantity?: number | null;
   @IsOptional() @IsInt() @Min(1) @Max(2147483647) priceXof?: number | null;
   @ValidateIf((_object, value: unknown) => value !== undefined)
   @IsArray()
@@ -62,7 +60,12 @@ export class PatchProductDto {
   @IsString()
   @MaxLength(5000)
   description?: string;
-  @ValidateIf((_object, value: unknown) => value !== undefined) @IsIn(categories) category?: string;
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsString()
+  @MaxLength(80)
+  @Matches(category)
+  category?: string;
+  @IsOptional() @IsInt() @Min(0) @Max(2147483647) stockQuantity?: number | null;
   @IsOptional() @IsInt() @Min(1) @Max(2147483647) priceXof?: number | null;
   @ValidateIf((_object, value: unknown) => value !== undefined)
   @IsArray()
@@ -105,10 +108,14 @@ export class ListProductsDto {
   @IsString()
   @MaxLength(120)
   q?: string;
-  @ValidateIf((_object, value: unknown) => value !== undefined) @IsIn(categories) category?: string;
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsString()
+  @MaxLength(80)
+  @Matches(category)
+  category?: string;
 }
 export class UploadSignatureDto {
-  @IsIn(['image', 'video']) type!: 'image' | 'video';
+  @IsIn(['image']) type!: 'image';
 }
 export class ConfirmMediaDto {
   @ValidateIf((_object, value: unknown) => value !== undefined)

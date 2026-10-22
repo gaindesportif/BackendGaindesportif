@@ -93,12 +93,25 @@ model AdminSession {
   @@schema("gainde_v1")
 }
 
+model ProductCategory {
+  slug      String    @id @db.VarChar(80)
+  label     String    @db.VarChar(80)
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  products  Product[]
+
+  @@map("product_categories")
+  @@schema("gainde_v1")
+}
+
 model Product {
   id               String                    @id @default(uuid()) @db.Uuid
   slug             String                    @unique @db.VarChar(180)
   name             String                    @db.VarChar(160)
   description      String                    @default("") @db.VarChar(6000)
   category         String                    @default("") @db.VarChar(80)
+  categoryInfo     ProductCategory           @relation(fields: [category], references: [slug], onDelete: Restrict)
+  stockQuantity    Int?                      @map("stock_quantity")
   priceXof         Int?                      @map("price_xof")
   sizes            String[]                  @default([])
   colors           String[]                  @default([])
