@@ -33,6 +33,10 @@ import { CustomerService } from './customer.service';
 @Controller('customer')
 export class CustomerController {
   constructor(private readonly customers: CustomerService) {}
+  @Get('config')
+  config() {
+    return this.customers.config();
+  }
   @Post('auth/register')
   @Throttle({ default: { limit: 3, ttl: 60000 } })
   register(@Body() dto: RegisterCustomerDto) {

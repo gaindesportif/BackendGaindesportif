@@ -98,7 +98,7 @@ export class CustomerManagementService {
         },
       });
       let notification: 'queued' | 'unverified' | 'unconfigured' = 'unconfigured';
-      if (!entry.account.emailVerifiedAt) notification = 'unverified';
+      if (this.mail.configured() && !entry.account.emailVerifiedAt) notification = 'unverified';
       else if (this.mail.configured()) {
         await this.mail.enqueue(tx, {
           accountId: entry.accountId,

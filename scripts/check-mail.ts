@@ -6,6 +6,7 @@ import { validateEnvironment } from '../src/config/environment';
 async function main() {
   const config = validateEnvironment(process.env);
   if (
+    !config.MAIL_ENABLED ||
     !config.SMTP_HOST ||
     !config.SMTP_USER ||
     !config.SMTP_PASSWORD ||

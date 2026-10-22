@@ -37,6 +37,7 @@ run('E-mails clients : HTTP, PostgreSQL et véritable SMTP local', () => {
       NODE_ENV: 'test',
       DATABASE_URL: testUrl!,
       DIRECT_URL: testUrl!,
+      MAIL_ENABLED: 'true',
       SMTP_HOST: '127.0.0.1',
       SMTP_PORT: '1025',
       MAIL_FROM: 'sender@example.test',
@@ -337,5 +338,31 @@ run('E-mails clients : HTTP, PostgreSQL et véritable SMTP local', () => {
     await customers.deleteProfile(await customers.authenticate(account.token), password);
     expect(await db.customerEmailToken.count({ where: { accountId: account.user.id } })).toBe(0);
     expect(await db.mailOutbox.count({ where: { accountId: account.user.id } })).toBe(0);
+  });
+  it('coupe tout envoi même avec un SMTP valide, tout en gardant inscription et suivi utilisables', async () => {
+    const config = app.get(ConfigService);
+    config.set('MAIL_ENABLED', false);
+    try {
+      const before = received.length;
+      expect(
+        (await request(app.getHttpServer()).get('/api/v1/customer/config').expect(200)).body,
+      ).toEqual({ emailEnabled: false });
+      const account = await create();
+      expect(account.verificationQueued).toBe(false);
+      const auth = await customers.authenticate(account.token);
+      expect(auth.user.emailVerifiedAt).toBeNull();
+      await customers.updateProfile(auth, 'Client sans e-mail');
+      await request(app.getHttpServer())
+        .post('/api/v1/customer/auth/forgot')
+        .send({ email: account.user.email })
+        .expect(503);
+      expect(await db.customerEmailToken.count({ where: { accountId: account.user.id } })).toBe(0);
+      expect(await db.mailOutbox.count({ where: { accountId: account.user.id } })).toBe(0);
+      await mail.processPending();
+      expect(received.length).toBe(before);
+      await expect(customers.login(account.user.email, password)).resolves.toHaveProperty('token');
+    } finally {
+      config.set('MAIL_ENABLED', true);
+    }
   });
 });

@@ -27,6 +27,7 @@ export class MailService implements OnModuleInit, OnModuleDestroy {
   ) {}
   configured() {
     return Boolean(
+      this.config.get<boolean>('MAIL_ENABLED') === true &&
       this.config.get<string>('SMTP_HOST') &&
       this.config.get<string>('MAIL_ENCRYPTION_KEY') &&
       this.config.get<string>('MAIL_FROM') &&

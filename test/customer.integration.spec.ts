@@ -262,7 +262,9 @@ run('Comptes clients HTTP ↔ PostgreSQL local isolé', () => {
       .expect(200);
   });
   it('signale honnêtement le service e-mail non configuré sans faux envoi', async () => {
+    expect((await call('get', '/config').expect(200)).body).toEqual({ emailEnabled: false });
     const account = await createAccount();
+    expect(account.verificationQueued).toBe(false);
     for (const email of [account.user.email, 'absent@example.test'])
       await call('post', '/auth/forgot').send({ email }).expect(503);
     await call('post', '/auth/resend-verification')

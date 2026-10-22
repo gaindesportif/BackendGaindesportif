@@ -33,6 +33,9 @@ export class CustomerService {
     private readonly db: DatabaseService,
     private readonly mail: MailService,
   ) {}
+  config() {
+    return { emailEnabled: this.mail.configured() };
+  }
   async register(dto: RegisterCustomerDto) {
     const passwordHash = await hashPassword(dto.password);
     try {
@@ -53,7 +56,7 @@ export class CustomerService {
     } catch (error) {
       if (isDuplicate(error))
         throw new ConflictException(
-          'Création impossible avec ces informations. Connectez-vous ou réinitialisez votre mot de passe par e-mail.',
+          'Création impossible avec ces informations. Connectez-vous ou contactez notre équipe.',
         );
       throw error;
     }

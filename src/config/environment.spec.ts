@@ -12,6 +12,7 @@ describe('configuration', () => {
 describe('configuration e-mail', () => {
   const base = { DATABASE_URL: 'postgresql://user:password@localhost/test' };
   const mail = {
+    MAIL_ENABLED: true,
     SMTP_HOST: 'smtp.gmail.com',
     SMTP_PORT: 465,
     SMTP_USER: 'gaindesportif@gmail.com',
@@ -19,6 +20,14 @@ describe('configuration e-mail', () => {
     MAIL_FROM: 'gaindesportif@gmail.com',
     MAIL_ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'),
   };
+  it('désactive l’envoi par défaut et exige une activation explicite', () => {
+    expect(validateEnvironment(base).MAIL_ENABLED).toBe(false);
+    expect(validateEnvironment({ ...base, ...mail, MAIL_ENABLED: 'false' }).MAIL_ENABLED).toBe(
+      false,
+    );
+    expect(() => validateEnvironment({ ...base, MAIL_ENABLED: 'true' })).toThrow();
+    expect(() => validateEnvironment({ ...base, MAIL_ENABLED: 'yes' })).toThrow();
+  });
   it('accepte le compte expéditeur sur TLS et refuse une configuration partielle ou détournée', () => {
     expect(validateEnvironment({ ...base, ...mail }).SMTP_PORT).toBe(465);
     for (const change of [
@@ -36,6 +45,7 @@ describe('configuration e-mail', () => {
       validateEnvironment({
         ...base,
         NODE_ENV: 'test',
+        MAIL_ENABLED: true,
         SMTP_HOST: '127.0.0.1',
         SMTP_PORT: 1025,
         MAIL_FROM: 'local@example.test',

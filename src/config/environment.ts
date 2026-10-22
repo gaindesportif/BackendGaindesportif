@@ -19,6 +19,10 @@ const schema = z.object({
     .optional(),
   CLOUDINARY_API_SECRET: z.string().min(12).optional(),
   CONTACT_PROXY_SECRET: z.string().min(32).optional(),
+  MAIL_ENABLED: z.preprocess(
+    (v) => (v === 'true' ? true : v === 'false' || v === undefined || v === '' ? false : v),
+    z.boolean(),
+  ),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce
     .number()
@@ -59,7 +63,7 @@ export function validateEnvironment(input: Record<string, unknown>) {
   )
     throw new Error('CUSTOMER_SITE_URL doit être une origine exacte, HTTPS en production.');
   const mailValues = [mail.SMTP_HOST, mail.MAIL_FROM, mail.MAIL_ENCRYPTION_KEY];
-  if (mailValues.some(Boolean)) {
+  if (mail.MAIL_ENABLED) {
     const local =
       mail.NODE_ENV === 'test' && ['localhost', '127.0.0.1', '::1'].includes(mail.SMTP_HOST || '');
     if (!mailValues.every(Boolean) || (!local && (!mail.SMTP_USER || !mail.SMTP_PASSWORD)))
