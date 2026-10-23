@@ -309,16 +309,16 @@ run('Boutique HTTP ↔ PostgreSQL local (Cloudinary simulé, aucune écriture Ne
       .get('/api/v1/admin/media/config')
       .auth(ownerToken, { type: 'bearer' })
       .expect(200);
-    expect(config.body.maxImages).toBe(5);
-    // Les tickets en attente réservent leur place, même lors de six demandes concurrentes.
+    expect(config.body.maxImages).toBe(10);
+    // Les tickets en attente réservent leur place, même lors de onze demandes concurrentes.
     const images = await Promise.allSettled(
-      Array.from({ length: 6 }, () => shop.uploadSignature(product.id, 'image')),
+      Array.from({ length: 11 }, () => shop.uploadSignature(product.id, 'image')),
     );
-    expect(images.filter((result) => result.status === 'fulfilled')).toHaveLength(5);
+    expect(images.filter((result) => result.status === 'fulfilled')).toHaveLength(10);
     expect(images.filter((result) => result.status === 'rejected')).toHaveLength(1);
     expect(
       await db.productMedia.count({ where: { productId: product.id, resourceType: 'image' } }),
-    ).toBe(5);
+    ).toBe(10);
     await expect(shop.uploadSignature(product.id, 'image')).rejects.toThrow('limite');
     const ownerSession = await db.adminSession.findFirstOrThrow({ where: { accountId: ownerId } });
     const other = await db.adminSession.create({

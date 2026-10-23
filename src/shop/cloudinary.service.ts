@@ -5,8 +5,8 @@ import { createHash } from 'node:crypto';
 export const MEDIA_LIMITS = {
   maxImageBytes: 10 * 1024 * 1024,
   maxVideoBytes: 50 * 1024 * 1024,
-  maxMedia: 5,
-  maxImages: 5,
+  maxMedia: 10,
+  maxImages: 10,
   maxVideos: 0,
 };
 export type ResourceType = 'image' | 'video';
