@@ -298,3 +298,43 @@ model MailOutbox {
   @@map("mail_outbox")
   @@schema("gainde_v1")
 }
+
+model Article {
+  id          String   @id @default(uuid()) @db.Uuid
+  slug        String   @unique @db.VarChar(200)
+  title       String   @db.VarChar(160)
+  excerpt     String   @default("") @db.VarChar(400)
+  body        String   @default("") @db.Text
+  category    String   @default("actualites") @db.VarChar(30)
+  author      String   @default("") @db.VarChar(100)
+  featured    Boolean  @default(false)
+  status      String   @default("draft") @db.VarChar(20)
+  version     Int      @default(1)
+  publishedAt DateTime? @map("published_at") @db.Timestamptz(3)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  images      ArticleImage[]
+
+  @@index([status, publishedAt(sort: Desc)])
+  @@index([status, featured(sort: Desc), publishedAt(sort: Desc)])
+  @@map("articles")
+  @@schema("gainde_v1")
+}
+
+model ArticleImage {
+  id        String   @id @default(uuid()) @db.Uuid
+  articleId String   @map("article_id") @db.Uuid
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Restrict)
+  publicId  String   @unique @map("public_id") @db.VarChar(240)
+  state     String   @default("pending") @db.VarChar(20)
+  url       String   @default("") @db.Text
+  alt       String   @default("") @db.VarChar(200)
+  caption   String   @default("") @db.VarChar(300)
+  credit    String   @default("") @db.VarChar(100)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+
+  @@index([articleId, state])
+  @@map("article_images")
+  @@schema("gainde_v1")
+}

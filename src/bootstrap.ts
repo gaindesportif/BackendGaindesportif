@@ -18,6 +18,8 @@ export function configureApp(app: INestApplication) {
       next();
     },
   );
+  // Plafond de transport dédié aux articles longs, sans limite éditoriale de longueur.
+  app.use('/api/v1/admin/articles', json({ limit: '20mb' }));
   app.use(json({ limit: '16kb' }));
   app.enableCors({
     origin: config

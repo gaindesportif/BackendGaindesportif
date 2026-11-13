@@ -22,6 +22,8 @@ export class HealthController {
         this.db.customerPreparedRequest.findFirst({ select: { id: true, processingStatus: true } }),
         this.db.customerEmailToken.findFirst({ select: { id: true } }),
         this.db.mailOutbox.findFirst({ select: { id: true } }),
+        this.db.article.findFirst({ select: { id: true, featured: true } }),
+        this.db.articleImage.findFirst({ select: { id: true } }),
       ]);
       return { status: 'ready' };
     } catch {

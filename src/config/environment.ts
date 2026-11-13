@@ -19,6 +19,10 @@ const schema = z.object({
     .optional(),
   CLOUDINARY_API_SECRET: z.string().min(12).optional(),
   CONTACT_PROXY_SECRET: z.string().min(32).optional(),
+  MEDIA_PUBLIC_ENABLED: z.preprocess(
+    (v) => (v === 'true' ? true : v === 'false' || v === undefined || v === '' ? false : v),
+    z.boolean(),
+  ),
   MAIL_ENABLED: z.preprocess(
     (v) => (v === 'true' ? true : v === 'false' || v === undefined || v === '' ? false : v),
     z.boolean(),
