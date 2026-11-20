@@ -6,7 +6,7 @@ COPY . .
 RUN npm run build
 FROM node:22-alpine AS runner
 WORKDIR /app
-ENV NODE_ENV=production PORT=4000
+ENV NODE_ENV=production PORT=4000 MEDIA_PUBLIC_ENABLED=true
 COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=builder --chown=node:node /app/dist ./dist
