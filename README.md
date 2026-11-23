@@ -181,3 +181,19 @@ Rédaction privée `/api/v1/admin/articles`, accessible aux comptes administrate
 L’image Docker de la semaine 2 active la lecture des articles publiés sur `/api/v1/articles` et `/api/v1/articles/:slug`. Sur Dokploy, remplacer l’ancienne variable d’exécution `MEDIA_PUBLIC_ENABLED=false` par `MEDIA_PUBLIC_ENABLED=true`. La valeur explicite false permet de couper la lecture publique. En local hors Docker, copier la configuration d’exemple puis définir true pour tester la lecture.
 
 Pour une installation neuve, les migrations Media restent nécessaires. Pour un environnement déjà à jour pour la semaine 1, l’ouverture publique ne demande aucune migration supplémentaire. Voir [la livraison de la semaine 1](docs/deploiement-media-semaine1.md) pour les sauvegardes et les rôles.
+
+### Modifier les accès du propriétaire
+
+Les identifiants de connexion sont stockés dans PostgreSQL. Pour renommer le compte
+propriétaire existant et définir un nouveau mot de passe, lancer dans un terminal
+interactif du backend relié à la bonne base :
+
+```sh
+npm run admin:create-owner -- --update
+```
+
+Saisir l'identifiant actuel, le nouvel identifiant (4 à 60 caractères), puis le
+nouveau mot de passe (12 à 128 caractères) deux fois. La saisie du mot de passe est
+masquée. Garder l'identifiant actuel dans les deux champs permet de changer
+seulement le mot de passe. L'opération cible un propriétaire actif, préserve son rôle
+et ferme ses anciennes sessions. Un identifiant déjà pris annule l'opération.

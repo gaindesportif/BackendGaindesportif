@@ -22,7 +22,7 @@ run('Boutique HTTP ↔ PostgreSQL local (Cloudinary simulé, aucune écriture Ne
   let productId: string;
   let secondId: string;
   let mediaId: string;
-  const usernames = [`test-owner-${Date.now()}`, `test-admin-${Date.now()}`];
+  const usernames = [`test-owner-${Date.now()}`, `Admin-Recette+${Date.now()}@example.test`];
   const ids: string[] = [];
   const cloud = {
     configuration: jest.fn().mockReturnValue({ configured: true, ...MEDIA_LIMITS }),
@@ -124,6 +124,20 @@ run('Boutique HTTP ↔ PostgreSQL local (Cloudinary simulé, aucune écriture Ne
       .expect(400);
   });
   it('gère les comptes sous contrôle du propriétaire et révoque les sessions désactivées', async () => {
+    for (const [username, status] of [
+      ['ABC', 400],
+      ['Éq@4', 201],
+    ] as const) {
+      try {
+        await api()
+          .post('/api/v1/admin/accounts')
+          .auth(ownerToken, { type: 'bearer' })
+          .send({ username, displayName: 'Admin recette', password: 'local-test-password-456' })
+          .expect(status);
+      } finally {
+        await db.adminAccount.deleteMany({ where: { username } });
+      }
+    }
     const created = await api()
       .post('/api/v1/admin/accounts')
       .auth(ownerToken, { type: 'bearer' })
