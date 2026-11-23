@@ -1,5 +1,7 @@
 import { Transform } from 'class-transformer';
 import { IsBoolean, IsString, Matches, MaxLength, MinLength, ValidateIf } from 'class-validator';
+import { adminPasswordMinLength } from './password';
+
 export const newAdminUsernamePattern = /^[^\p{Cc}]{4,60}$/u;
 
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
@@ -15,7 +17,7 @@ export class CreateAccountDto {
   })
   username!: string;
   @Transform(trim) @IsString() @MinLength(2) @MaxLength(100) displayName!: string;
-  @IsString() @MinLength(12) @MaxLength(128) password!: string;
+  @IsString() @MinLength(adminPasswordMinLength) @MaxLength(128) password!: string;
 }
 export class UpdateAccountDto {
   @ValidateIf((_object, value: unknown) => value !== undefined)
@@ -27,11 +29,11 @@ export class UpdateAccountDto {
   @ValidateIf((_object, value: unknown) => value !== undefined) @IsBoolean() active?: boolean;
   @ValidateIf((_object, value: unknown) => value !== undefined)
   @IsString()
-  @MinLength(12)
+  @MinLength(adminPasswordMinLength)
   @MaxLength(128)
   password?: string;
 }
 export class PasswordDto {
   @IsString() @MinLength(1) @MaxLength(128) currentPassword!: string;
-  @IsString() @MinLength(12) @MaxLength(128) newPassword!: string;
+  @IsString() @MinLength(adminPasswordMinLength) @MaxLength(128) newPassword!: string;
 }

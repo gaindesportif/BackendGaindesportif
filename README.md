@@ -88,7 +88,7 @@ Créer le premier propriétaire depuis un terminal interactif **sur la base expr
 npm run admin:create-owner
 ```
 
-L’identifiant et le nom affiché sont demandés ; le mot de passe de 12 à 128 caractères et sa confirmation sont masqués. Aucun mot de passe en argument, variable persistante ou compte par défaut. Un verrou transactionnel empêche deux créations simultanées de propriétaire. La commande refuse de créer un autre propriétaire s’il en existe un. L’absence de terminal interactif interrompt la création. Ne jamais transmettre de mot de passe dans le chat.
+L’identifiant et le nom affiché sont demandés ; le mot de passe de 4 à 128 caractères et sa confirmation sont masqués. Aucun mot de passe en argument, variable persistante ou compte par défaut. Un verrou transactionnel empêche deux créations simultanées de propriétaire. La commande refuse de créer un autre propriétaire s’il en existe un. L’absence de terminal interactif interrompt la création. Ne jamais transmettre de mot de passe dans le chat.
 
 Les mots de passe utilisent `scrypt` asynchrone natif (sel aléatoire, N=32768, r=8, p=1). Une session opaque aléatoire de 256 bits expire après 8 heures ; seule son empreinte SHA-256 est en base. Authentification via `Authorization: Bearer` côté serveur Next. Le navigateur doit conserver uniquement le cookie HttpOnly du BFF Next, jamais le token API dans localStorage. Login limité à 5 tentatives/minute, message identique pour identifiant ou mot de passe incorrect. Un propriétaire crée uniquement des administrateurs et peut les désactiver/réinitialiser ; les sessions correspondantes sont révoquées. Le changement de son mot de passe révoque les autres sessions. Un administrateur n’a pas accès à la gestion des comptes. Les réponses admin portent `Cache-Control: no-store`.
 
@@ -193,7 +193,7 @@ npm run admin:create-owner -- --update
 ```
 
 Saisir l'identifiant actuel, le nouvel identifiant (4 à 60 caractères), puis le
-nouveau mot de passe (12 à 128 caractères) deux fois. La saisie du mot de passe est
+nouveau mot de passe (4 à 128 caractères) deux fois. La saisie du mot de passe est
 masquée. Garder l'identifiant actuel dans les deux champs permet de changer
 seulement le mot de passe. L'opération cible un propriétaire actif, préserve son rôle
 et ferme ses anciennes sessions. Un identifiant déjà pris annule l'opération.

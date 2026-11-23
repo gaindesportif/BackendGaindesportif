@@ -124,15 +124,16 @@ run('Boutique HTTP ↔ PostgreSQL local (Cloudinary simulé, aucune écriture Ne
       .expect(400);
   });
   it('gère les comptes sous contrôle du propriétaire et révoque les sessions désactivées', async () => {
-    for (const [username, status] of [
-      ['ABC', 400],
-      ['Éq@4', 201],
+    for (const [username, password, status] of [
+      ['ABC', 'mZ9V', 400],
+      ['Éq@4', 'mZ9', 400],
+      ['Éq@4', 'mZ9V', 201],
     ] as const) {
       try {
         await api()
           .post('/api/v1/admin/accounts')
           .auth(ownerToken, { type: 'bearer' })
-          .send({ username, displayName: 'Admin recette', password: 'local-test-password-456' })
+          .send({ username, displayName: 'Admin recette', password })
           .expect(status);
       } finally {
         await db.adminAccount.deleteMany({ where: { username } });
@@ -144,14 +145,14 @@ run('Boutique HTTP ↔ PostgreSQL local (Cloudinary simulé, aucune écriture Ne
       .send({
         username: usernames[1],
         displayName: 'Admin recette',
-        password: 'local-test-password-456',
+        password: 'mZ9V',
       })
       .expect(201);
     adminId = created.body.id;
     expect(created.body.role).toBe('admin');
     const logged = await api()
       .post('/api/v1/admin/auth/login')
-      .send({ username: usernames[1], password: 'local-test-password-456' })
+      .send({ username: usernames[1], password: 'mZ9V' })
       .expect(200);
     adminToken = logged.body.token;
     await api().get('/api/v1/admin/accounts').auth(adminToken, { type: 'bearer' }).expect(403);
@@ -347,7 +348,7 @@ run('Boutique HTTP ↔ PostgreSQL local (Cloudinary simulé, aucune écriture Ne
       .auth(ownerToken, { type: 'bearer' })
       .send({
         currentPassword: 'local-test-password-123',
-        newPassword: 'local-test-password-updated',
+        newPassword: 'hR7e',
       })
       .expect(200);
     expect(await db.adminSession.findUnique({ where: { id: other.id } })).toBeNull();

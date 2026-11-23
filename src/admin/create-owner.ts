@@ -3,7 +3,7 @@ import 'reflect-metadata';
 import { ConfigService } from '@nestjs/config';
 import { createInterface } from 'node:readline/promises';
 import { DatabaseService } from '../database/database.service';
-import { hashPassword } from './password';
+import { adminPasswordMinLength, hashPassword } from './password';
 import { newAdminUsernamePattern } from './admin.dto';
 import { validateEnvironment } from '../config/environment';
 
@@ -69,10 +69,10 @@ async function main() {
     )
       throw new Error('invalid-fields');
     const password = await hiddenQuestion(
-      'Nouveau mot de passe (12–128 caractères, saisie masquée) : ',
+      `Nouveau mot de passe (${adminPasswordMinLength}–128 caractères, saisie masquée) : `,
     );
     const confirm = await hiddenQuestion('Confirmer le mot de passe : ');
-    if (password.length < 12 || password.length > 128 || password !== confirm)
+    if (password.length < adminPasswordMinLength || password.length > 128 || password !== confirm)
       throw new Error('invalid-password');
     const passwordHash = await hashPassword(password);
     await db.$transaction(async (tx) => {

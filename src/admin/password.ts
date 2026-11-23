@@ -1,5 +1,7 @@
 import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 
+export const adminPasswordMinLength = 4;
+
 const options = { N: 32768, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
 function derive(password: string, salt: string): Promise<Buffer> {
   return new Promise((resolve, reject) => {
