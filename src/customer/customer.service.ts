@@ -367,7 +367,13 @@ export class CustomerService {
   }
   async prepareRequest(auth: AuthenticatedCustomer, dto: CustomerPreparedRequestDto) {
     const payloadHash = digest(
-      JSON.stringify([dto.productId, dto.quantity, dto.size ?? null, dto.color ?? null]),
+      JSON.stringify([
+        dto.productId,
+        dto.quantity,
+        dto.size ?? null,
+        dto.color ?? null,
+        ...(dto.withFlocking ? [true] : []),
+      ]),
     );
     await this.db.$transaction(async (tx) => {
       await this.lockAuthenticated(tx, auth);
@@ -391,6 +397,10 @@ export class CustomerService {
         (product.colors.length === 0 && dto.color !== undefined)
       )
         throw new BadRequestException('Choisissez les options proposées pour ce produit.');
+      const supplement =
+        dto.withFlocking && product.category === 'maillots' ? product.flockingPriceXof : null;
+      if (dto.withFlocking && supplement === null)
+        throw new BadRequestException('Le flocage est indisponible pour ce produit.');
       await tx.customerPreparedRequest.create({
         data: {
           accountId: auth.user.id,
@@ -399,7 +409,7 @@ export class CustomerService {
           payloadHash,
           productName: product.name,
           productSlug: product.slug,
-          priceXof: product.priceXof!,
+          priceXof: product.priceXof! + (supplement ?? 0),
           quantity: dto.quantity,
           size: dto.size,
           color: dto.color,

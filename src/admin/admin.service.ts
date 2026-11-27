@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { createHash, randomBytes } from 'node:crypto';
 import { DatabaseService } from '../database/database.service';
+import { findAdminByUsername } from './admin-username';
 import { CreateAccountDto, UpdateAccountDto } from './admin.dto';
 import { hashPassword, verifyPassword } from './password';
 import type { AdminAccount } from '../generated/prisma/client';
@@ -30,7 +31,7 @@ export class AdminService {
   private dummyHash: Promise<string> | undefined;
   constructor(private readonly db: DatabaseService) {}
   async login(username: string, password: string) {
-    const account = await this.db.adminAccount.findUnique({ where: { username } });
+    const account = await findAdminByUsername(this.db, username);
     this.dummyHash ??= hashPassword(randomBytes(32).toString('hex'));
     const valid = await verifyPassword(password, account?.passwordHash ?? (await this.dummyHash));
     if (!account || !valid || !account.active)

@@ -23,6 +23,18 @@ const schema = z.object({
     (v) => (v === 'true' ? true : v === 'false' || v === undefined || v === '' ? false : v),
     z.boolean(),
   ),
+  MEDIA_PUSH_PUBLIC_KEY: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{87}$/)
+    .optional(),
+  MEDIA_PUSH_PRIVATE_KEY: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{43}$/)
+    .optional(),
+  MEDIA_PUSH_SUBJECT: z
+    .string()
+    .regex(/^mailto:[^@\s]+@[^@\s]+$/)
+    .optional(),
   MAIL_ENABLED: z.preprocess(
     (v) => (v === 'true' ? true : v === 'false' || v === undefined || v === '' ? false : v),
     z.boolean(),
@@ -57,6 +69,13 @@ export function validateEnvironment(input: Record<string, unknown>) {
   ].filter(Boolean).length;
   if (cloudinaryCount !== 0 && cloudinaryCount !== 3)
     throw new Error('Cloudinary : renseignez les trois variables ou laissez-les absentes.');
+  const pushValues = [
+    result.data.MEDIA_PUSH_PUBLIC_KEY,
+    result.data.MEDIA_PUSH_PRIVATE_KEY,
+    result.data.MEDIA_PUSH_SUBJECT,
+  ];
+  if (pushValues.some(Boolean) && !pushValues.every(Boolean))
+    throw new Error('Configurez les trois paramètres Web Push ou laissez-les absents.');
   const mail = result.data;
   const site = new URL(mail.CUSTOMER_SITE_URL);
   if (

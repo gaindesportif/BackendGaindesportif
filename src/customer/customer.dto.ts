@@ -81,6 +81,9 @@ export class CustomerPreparedRequestDto {
   @IsUUID('4') requestKey!: string;
   @IsInt() @Min(1) @Max(99) quantity!: number;
   @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsBoolean()
+  withFlocking?: boolean;
+  @ValidateIf((_object, value: unknown) => value !== undefined)
   @Transform(trim)
   @IsString()
   @MinLength(1)

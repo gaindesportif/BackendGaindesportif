@@ -115,6 +115,8 @@ model Product {
   priceXof         Int?                      @map("price_xof")
   sizes            String[]                  @default([])
   colors           String[]                  @default([])
+  flockingPriceXof Int?                      @map("flocking_price_xof")
+  previewColor     String?                   @map("preview_color") @db.VarChar(40)
   availability     String                    @default("on_request") @db.VarChar(40)
   status           ProductStatus             @default(draft)
   createdAt        DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -314,6 +316,7 @@ model Article {
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
   images      ArticleImage[]
+  pushDeliveries MediaPushDelivery[]
 
   @@index([status, publishedAt(sort: Desc)])
   @@index([status, featured(sort: Desc), publishedAt(sort: Desc)])
@@ -336,5 +339,32 @@ model ArticleImage {
 
   @@index([articleId, state])
   @@map("article_images")
+  @@schema("gainde_v1")
+}
+
+model MediaPushSubscription {
+  id         String              @id
+  endpoint   String              @db.Text
+  p256dh     String              @db.VarChar(87)
+  auth       String              @db.VarChar(22)
+  deliveries MediaPushDelivery[]
+
+  @@map("media_push_subscriptions")
+  @@schema("gainde_v1")
+}
+
+model MediaPushDelivery {
+  articleId      String                @map("article_id") @db.Uuid
+  article        Article               @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  subscriptionId String                @map("subscription_id")
+  subscription   MediaPushSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  attempts       Int                   @default(0)
+  nextAttemptAt  DateTime              @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
+  expiresAt      DateTime              @map("expires_at") @db.Timestamptz(3)
+
+  @@id([articleId, subscriptionId])
+  @@index([nextAttemptAt])
+  @@index([subscriptionId])
+  @@map("media_push_deliveries")
   @@schema("gainde_v1")
 }

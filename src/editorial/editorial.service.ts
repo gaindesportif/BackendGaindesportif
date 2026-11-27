@@ -10,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import { DatabaseService } from '../database/database.service';
 import { CloudinaryService } from '../shop/cloudinary.service';
+import { MediaPushService } from './media-push.service';
 import type { Prisma } from '../generated/prisma/client';
 import { ArticleDto, ArticleImageDto, ArticleQueryDto } from './editorial.dto';
 
@@ -26,6 +27,7 @@ export class EditorialService implements OnModuleInit, OnModuleDestroy {
     private readonly db: DatabaseService,
     private readonly cloud: CloudinaryService,
     private readonly config: ConfigService,
+    private readonly push: MediaPushService,
   ) {}
   onModuleInit() {
     if (this.config.get('NODE_ENV') !== 'test') {
@@ -175,6 +177,9 @@ export class EditorialService implements OnModuleInit, OnModuleDestroy {
           publishedAt: dto.status === 'published' ? a.publishedAt || new Date() : a.publishedAt,
         },
       });
+      if (dto.status === 'published' && !a.publishedAt) await this.push.enqueue(tx, id);
+      if (dto.status === 'draft' && a.status === 'published')
+        await tx.mediaPushDelivery.deleteMany({ where: { articleId: id } });
     });
     return this.get(id);
   }

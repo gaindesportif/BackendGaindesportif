@@ -437,6 +437,39 @@ run('Comptes clients HTTP ↔ PostgreSQL local isolé', () => {
         .items,
     ).toHaveLength(0);
   });
+  it('calcule le prix floqué côté serveur et refuse le flocage sans tarif', async () => {
+    const account = await createAccount();
+    const productId = publicProducts[1];
+    const body = {
+      productId,
+      requestKey: randomUUID(),
+      quantity: 2,
+      size: 'M',
+      color: 'Vert',
+      withFlocking: true,
+    };
+    const send = (payload: typeof body) =>
+      call('post', '/requests').auth(account.token, { type: 'bearer' }).send(payload);
+    await send(body).expect(400);
+    const { category } = await db.product.findUniqueOrThrow({ where: { id: productId } });
+    await db.product.update({
+      where: { id: productId },
+      data: { category: 'maillots', flockingPriceXof: 2000 },
+    });
+    try {
+      await send(body).expect(204);
+      await send({ ...body, withFlocking: false }).expect(409);
+      const history = await call('get', '/requests')
+        .auth(account.token, { type: 'bearer' })
+        .expect(200);
+      expect(history.body.items[0]).toMatchObject({ priceXof: 3001, quantity: 2 });
+    } finally {
+      await db.product.update({
+        where: { id: productId },
+        data: { category, flockingPriceXof: null },
+      });
+    }
+  });
   it('borne les demandes préparées à 50 et conserve le snapshot après suppression produit', async () => {
     const account = await createAccount();
     const auth = await customers.authenticate(account.token);

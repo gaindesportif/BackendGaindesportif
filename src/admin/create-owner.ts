@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { createInterface } from 'node:readline/promises';
 import { DatabaseService } from '../database/database.service';
 import { adminPasswordMinLength, hashPassword } from './password';
+import { findAdminByUsername } from './admin-username';
 import { newAdminUsernamePattern } from './admin.dto';
 import { validateEnvironment } from '../config/environment';
 
@@ -78,8 +79,11 @@ async function main() {
     await db.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(2211919)`;
       if (update) {
+        const account = await findAdminByUsername(tx, currentUsername);
+        if (!account || account.role !== 'owner' || !account.active)
+          throw new Error('owner-not-found');
         const owner = await tx.adminAccount.update({
-          where: { username: currentUsername, role: 'owner', active: true },
+          where: { id: account.id, username: account.username, role: 'owner', active: true },
           data: { username, passwordHash },
           select: { id: true },
         });

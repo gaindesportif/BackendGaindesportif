@@ -12,7 +12,9 @@ export class HealthController {
         this.db.contactRequest.findFirst({ select: { id: true } }),
         this.db.adminAccount.findFirst({ select: { id: true } }),
         this.db.adminSession.findFirst({ select: { id: true } }),
-        this.db.product.findFirst({ select: { id: true, stockQuantity: true } }),
+        this.db.product.findFirst({
+          select: { id: true, stockQuantity: true, previewColor: true, flockingPriceXof: true },
+        }),
         this.db.productCategory.findFirst({ select: { slug: true } }),
         this.db.productMedia.findFirst({ select: { id: true } }),
         this.db.customerAccount.findFirst({ select: { id: true, emailVerifiedAt: true } }),
@@ -24,6 +26,8 @@ export class HealthController {
         this.db.mailOutbox.findFirst({ select: { id: true } }),
         this.db.article.findFirst({ select: { id: true, featured: true } }),
         this.db.articleImage.findFirst({ select: { id: true } }),
+        this.db.mediaPushSubscription.findFirst({ select: { id: true } }),
+        this.db.mediaPushDelivery.findFirst({ select: { articleId: true } }),
       ]);
       return { status: 'ready' };
     } catch {

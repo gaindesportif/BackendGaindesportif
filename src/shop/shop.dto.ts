@@ -41,6 +41,13 @@ export class ProductDto {
   @MinLength(1, { each: true })
   @MaxLength(40, { each: true })
   colors?: string[];
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(40)
+  previewColor?: string | null;
+  @IsOptional() @IsInt() @Min(1) @Max(2147483647) flockingPriceXof?: number | null;
   @ValidateIf((_object, value: unknown) => value !== undefined)
   @IsIn(['on_request', 'available', 'unavailable'])
   availability?: string;
@@ -83,6 +90,13 @@ export class PatchProductDto {
   @MinLength(1, { each: true })
   @MaxLength(40, { each: true })
   colors?: string[];
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(40)
+  previewColor?: string | null;
+  @IsOptional() @IsInt() @Min(1) @Max(2147483647) flockingPriceXof?: number | null;
   @ValidateIf((_object, value: unknown) => value !== undefined)
   @IsIn(['on_request', 'available', 'unavailable'])
   availability?: string;

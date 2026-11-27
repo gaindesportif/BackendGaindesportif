@@ -22,7 +22,7 @@ run('Boutique HTTP ↔ PostgreSQL local (Cloudinary simulé, aucune écriture Ne
   let productId: string;
   let secondId: string;
   let mediaId: string;
-  const usernames = [`test-owner-${Date.now()}`, `Admin-Recette+${Date.now()}@example.test`];
+  const usernames = [`test-owner-${Date.now()}`, `Àdmin-Recette+${Date.now()}@example.test`];
   const ids: string[] = [];
   const cloud = {
     configuration: jest.fn().mockReturnValue({ configured: true, ...MEDIA_LIMITS }),
@@ -103,7 +103,7 @@ run('Boutique HTTP ↔ PostgreSQL local (Cloudinary simulé, aucune écriture Ne
       .expect(401);
     const result = await api()
       .post('/api/v1/admin/auth/login')
-      .send({ username: usernames[0], password: 'local-test-password-123' })
+      .send({ username: usernames[0].toUpperCase(), password: 'local-test-password-123' })
       .expect(200);
     ownerToken = result.body.token;
     expect(ownerToken).toMatch(/^[\w-]{43}$/);
@@ -150,10 +150,26 @@ run('Boutique HTTP ↔ PostgreSQL local (Cloudinary simulé, aucune écriture Ne
       .expect(201);
     adminId = created.body.id;
     expect(created.body.role).toBe('admin');
+    expect(created.body.username).toBe(usernames[1]);
+    await api()
+      .post('/api/v1/admin/accounts')
+      .auth(ownerToken, { type: 'bearer' })
+      .send({
+        username: usernames[1].toUpperCase(),
+        displayName: 'Autre admin recette',
+        password: 'mZ9V',
+      })
+      .expect(409);
+    await api()
+      .post('/api/v1/admin/auth/login')
+      .send({ username: usernames[1].toLowerCase(), password: 'mz9v' })
+      .expect(401);
     const logged = await api()
       .post('/api/v1/admin/auth/login')
-      .send({ username: usernames[1], password: 'mZ9V' })
+      .send({ username: usernames[1].toLowerCase(), password: 'mZ9V' })
       .expect(200);
+    expect(logged.body.user.id).toBe(adminId);
+    expect(logged.body.user.username).toBe(usernames[1]);
     adminToken = logged.body.token;
     await api().get('/api/v1/admin/accounts').auth(adminToken, { type: 'bearer' }).expect(403);
     await api()

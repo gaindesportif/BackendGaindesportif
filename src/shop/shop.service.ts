@@ -48,6 +48,8 @@ export function serializeProduct(product: ProductWithMedia, admin = false) {
     priceXof: product.priceXof,
     sizes: product.sizes,
     colors: product.colors,
+    previewColor: product.previewColor,
+    flockingPriceXof: product.category === 'maillots' ? product.flockingPriceXof : null,
     availability: product.availability,
     status: product.status,
     createdAt: product.createdAt,
@@ -173,7 +175,17 @@ export class ShopService implements OnModuleInit, OnModuleDestroy {
     if (!product) throw new NotFoundException('Produit introuvable.');
     return serializeProduct(product, true);
   }
+  private validateFlockingPrice(
+    category: string,
+    price?: number | null,
+    supplement?: number | null,
+  ) {
+    if (category === 'maillots' && (price ?? 0) + (supplement ?? 0) > 2147483647)
+      throw new BadRequestException('Le prix du maillot avec flocage est trop élevé.');
+  }
+
   async create(dto: ProductDto) {
+    this.validateFlockingPrice(dto.category, dto.priceXof, dto.flockingPriceXof);
     if (dto.status === 'published')
       throw new BadRequestException(
         'Enregistrez un brouillon et ajoutez une image avant publication.',
@@ -193,6 +205,8 @@ export class ShopService implements OnModuleInit, OnModuleDestroy {
       const product = await this.db.product.create({
         data: {
           ...dto,
+          previewColor: dto.category === 'maillots' ? dto.previewColor : null,
+          flockingPriceXof: dto.category === 'maillots' ? dto.flockingPriceXof : null,
           availability:
             dto.stockQuantity == null
               ? 'on_request'
@@ -217,9 +231,13 @@ export class ShopService implements OnModuleInit, OnModuleDestroy {
       this.modifiable(product);
       if (dto.category) await this.requireCategory(tx, dto.category);
       const stock = dto.stockQuantity === undefined ? product.stockQuantity : dto.stockQuantity;
+      const category = dto.category ?? product.category;
+      const price = dto.priceXof === undefined ? product.priceXof : dto.priceXof;
+      const flockingPrice =
+        dto.flockingPriceXof === undefined ? product.flockingPriceXof : dto.flockingPriceXof;
+      this.validateFlockingPrice(category, price, flockingPrice);
       if ((dto.status ?? product.status) === 'published') {
         await this.requireCategory(tx, dto.category ?? product.category);
-        const price = dto.priceXof === undefined ? product.priceXof : dto.priceXof;
         const imageCount = await tx.productMedia.count({
           where: { productId: id, state: 'ready', resourceType: 'image' },
         });
@@ -240,6 +258,8 @@ export class ShopService implements OnModuleInit, OnModuleDestroy {
           where: { id },
           data: {
             ...dto,
+            previewColor: category === 'maillots' ? dto.previewColor : null,
+            flockingPriceXof: category === 'maillots' ? flockingPrice : null,
             availability: stock == null ? 'on_request' : stock > 0 ? 'available' : 'unavailable',
           },
           include: includeMedia,

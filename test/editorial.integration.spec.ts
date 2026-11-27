@@ -1,4 +1,7 @@
 import 'reflect-metadata';
+import { createECDH, randomBytes } from 'node:crypto';
+import { generateVAPIDKeys, sendNotification, WebPushError } from 'web-push';
+import { MediaPushService } from '../src/editorial/media-push.service';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
@@ -8,6 +11,8 @@ import { CloudinaryService } from '../src/shop/cloudinary.service';
 import { EditorialService } from '../src/editorial/editorial.service';
 import { configureApp } from '../src/bootstrap';
 import { hashPassword } from '../src/admin/password';
+jest.mock('web-push', () => ({ ...jest.requireActual('web-push'), sendNotification: jest.fn() }));
+
 const url = process.env.DATABASE_TEST_URL;
 (url ? describe : describe.skip)('Gaindé Media HTTP / PostgreSQL isolé', () => {
   let app: INestApplication, db: DatabaseService, service: EditorialService, config: ConfigService;
@@ -22,23 +27,19 @@ const url = process.env.DATABASE_TEST_URL;
     status: 'draft',
   };
   const cloud = {
-    signature: jest
-      .fn()
-      .mockReturnValue({
-        uploadUrl: 'https://api.cloudinary.com/v1_1/test/image/upload',
-        fields: {},
-        maxBytes: 10485760,
-      }),
-    verify: jest
-      .fn()
-      .mockImplementation(async (publicId: string) => ({
-        secureUrl: `https://res.cloudinary.com/test/image/upload/${publicId}.jpg`,
-        bytes: 100,
-        width: 800,
-        height: 500,
-        format: 'jpg',
-        duration: null,
-      })),
+    signature: jest.fn().mockReturnValue({
+      uploadUrl: 'https://api.cloudinary.com/v1_1/test/image/upload',
+      fields: {},
+      maxBytes: 10485760,
+    }),
+    verify: jest.fn().mockImplementation(async (publicId: string) => ({
+      secureUrl: `https://res.cloudinary.com/test/image/upload/${publicId}.jpg`,
+      bytes: 100,
+      width: 800,
+      height: 500,
+      format: 'jpg',
+      duration: null,
+    })),
     destroy: jest.fn().mockResolvedValue(undefined),
   };
   const api = () => request(app.getHttpServer());
@@ -83,6 +84,72 @@ const url = process.env.DATABASE_TEST_URL;
     await db.article.deleteMany({ where: { id: { in: ids } } });
     await db.adminAccount.deleteMany({ where: { username } });
     await app.close();
+  });
+  it('programme une seule notification à la première publication et retire les abonnements expirés', async () => {
+    const push = app.get(MediaPushService);
+    const keys = generateVAPIDKeys();
+    config.set('MEDIA_PUSH_PUBLIC_KEY', keys.publicKey);
+    config.set('MEDIA_PUSH_PRIVATE_KEY', keys.privateKey);
+    config.set('MEDIA_PUSH_SUBJECT', 'mailto:media@example.test');
+    const client = createECDH('prime256v1');
+    const subscription = {
+      endpoint: 'https://fcm.googleapis.com/fcm/send/local-article-test',
+      p256dh: client.generateKeys().toString('base64url'),
+      auth: randomBytes(16).toString('base64url'),
+    };
+    try {
+      const exposed = await api().get('/api/v1/media-notifications/config').expect(200);
+      expect(exposed.body).toEqual({ publicKey: keys.publicKey });
+      await api()
+        .post('/api/v1/media-notifications/subscribe')
+        .send({ ...subscription, endpoint: 'https://127.0.0.1/dev' })
+        .expect(400);
+      const subscribe = () =>
+        api().post('/api/v1/media-notifications/subscribe').send(subscription).expect(204);
+      await subscribe();
+      await subscribe();
+      const article = await service.create({ ...dto, title: 'TEST LOCAL — Notification' } as never);
+      ids.push(article.id);
+      await db.articleImage.create({
+        data: {
+          articleId: article.id,
+          publicId: 'local-test-push-image',
+          url: 'https://res.cloudinary.com/test/image/upload/photo.jpg',
+          state: 'ready',
+          expiresAt: new Date(),
+        },
+      });
+      const publish = (version: number, status: 'published' | 'draft') =>
+        service.update(article.id, { ...dto, title: article.title, status, version } as never);
+      const published = await publish(article.version, 'published');
+      expect(await db.mediaPushDelivery.count({ where: { articleId: article.id } })).toBe(1);
+      const deliver = jest.mocked(sendNotification);
+      deliver.mockRejectedValueOnce(new WebPushError('Expiré', 410, {}, '', subscription.endpoint));
+      await push.dispatch();
+      expect(deliver).toHaveBeenCalledTimes(1);
+      const [, payload] = deliver.mock.calls[0];
+      expect(JSON.parse(payload as string)).toEqual({
+        title: article.title,
+        path: '/media/' + article.slug,
+      });
+      expect(
+        await db.mediaPushSubscription.count({ where: { endpoint: subscription.endpoint } }),
+      ).toBe(0);
+      await subscribe();
+      const draft = await publish(published.version, 'draft');
+      await publish(draft.version, 'published');
+      expect(await db.mediaPushDelivery.count({ where: { articleId: article.id } })).toBe(0);
+      await api()
+        .post('/api/v1/media-notifications/unsubscribe')
+        .send({ endpoint: subscription.endpoint, auth: subscription.auth })
+        .expect(204);
+      expect(
+        await db.mediaPushSubscription.count({ where: { endpoint: subscription.endpoint } }),
+      ).toBe(0);
+    } finally {
+      config.set('MEDIA_PUSH_PUBLIC_KEY', undefined);
+      await db.mediaPushSubscription.deleteMany({ where: { endpoint: subscription.endpoint } });
+    }
   });
   it('protège les brouillons et mutations contre les visiteurs', async () => {
     await api().get('/api/v1/admin/articles').expect(401);
